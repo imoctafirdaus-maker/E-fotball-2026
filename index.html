@@ -3,350 +3,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Animated Football Simulator</title>
+    <title>3D Game Platform: Chess, Ludo, XO</title>
     <style>
-        body { margin: 0; background: #121212; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; color: #fff; }
-        #container { position: relative; border: 4px solid #444; background: #27ae60; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        canvas { display: block; }
-        
-        /* UI HUD */
-        #hud { position: absolute; top: 0; width: 100%; display: flex; justify-content: space-between; padding: 15px; box-sizing: border-box; pointer-events: none; }
-        .stat-box { background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 5px; text-align: center; border: 1px solid #555; }
-        #score { font-size: 26px; font-weight: bold; letter-spacing: 1px; color: #f1c40f; }
-        #timer { font-size: 14px; color: #ccc; }
-        
-        /* Power Bar */
-        #power-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 200px; height: 12px; background: rgba(255,255,255,0.2); border-radius: 6px; display: none; border: 2px solid #fff; }
-        #power-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #f1c40f, #e74c3c); border-radius: 4px; }
+        /* --- CSS: VISUAL SYSTEM --- */
+        :root {
+            --gold: #ffd700;
+            --dark: #121212;
+            --glass: rgba(0, 0, 0, 0.85);
+        }
 
-        /* Stamina Bar */
-        .stamina-bg { width: 100px; height: 8px; background: #333; margin-top: 5px; border-radius: 4px; overflow: hidden; border: 1px solid #555;}
-        #stamina-fill { width: 100%; height: 100%; background: #2ecc71; transition: width 0.1s, background 0.3s; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #000; color: white; }
+        
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { width: 100%; height: 100%; display: block; background: radial-gradient(circle, #2c3e50 0%, #000 100%); }
 
-        #goal-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 100px; font-weight: bold; color: #fff; text-shadow: 0 0 30px #000, 0 0 10px #f1c40f; display: none; font-family: 'Arial Black', sans-serif; }
+        /* UI Screens */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: none;
+        }
+
+        .screen {
+            background: var(--glass);
+            padding: 40px; border-radius: 20px; text-align: center;
+            border: 2px solid var(--gold); pointer-events: all;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+            min-width: 300px;
+        }
+
+        .hidden { display: none !important; }
+
+        button {
+            display: block; width: 100%; margin: 15px 0; padding: 15px;
+            cursor: pointer; background: var(--gold); border: none; 
+            font-weight: bold; font-size: 1rem; border-radius: 8px;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        button:hover { transform: scale(1.05); background: white; color: black; }
+        button.back { background: #555; color: white; margin-top: 20px; }
+
+        /* HUD & Gameplay UI */
+        #game-hud {
+            position: absolute; top: 20px; width: 100%; text-align: center;
+            pointer-events: none; color: var(--gold); font-size: 1.5rem;
+            text-shadow: 0 2px 5px #000;
+        }
+
+        #dice-container {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            pointer-events: all;
+        }
+
+        /* XO Grid Simulation (Small preview of the 100 grid logic) */
+        .xo-info { font-size: 0.8rem; color: #aaa; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div id="container">
-    <div id="hud">
-        <div class="stat-box">
-            <div id="score">P1 0 - 0 AI</div>
-            <div id="timer">02:00</div>
+    <div id="game-container">
+        <canvas id="renderCanvas"></canvas>
+
+        <div class="overlay">
+            <div id="main-menu" class="screen">
+                <h1 style="letter-spacing: 5px;">GAME HUB 3D</h1>
+                <p>Platform Multi-Mode</p>
+                <button onclick="nav('game-selection')">PLAY</button>
+                <button onclick="alert('Settings: Volume 100%')">SETTINGS</button>
+                <button onclick="confirm('Exit Game?')">EXIT</button>
+            </div>
+
+            <div id="game-selection" class="screen hidden">
+                <h2>PILIH MODE</h2>
+                <button onclick="setupGame('CHESS')">♟️ CHESS 3D</button>
+                <button onclick="setupGame('LUDO')">🎲 LUDO 3D</button>
+                <button onclick="setupGame('XO')">❌ XO 3D (100 GRID)</button>
+                <button class="back" onclick="nav('main-menu')">KEMBALI</button>
+            </div>
+
+            <div id="setup-player" class="screen hidden">
+                <h2 id="setup-title">KONFIGURASI</h2>
+                <div id="player-info" style="margin-bottom: 20px;"></div>
+                <button onclick="initGameScene()">START GAME</button>
+                <button class="back" onclick="nav('game-selection')">BACK</button>
+            </div>
+
+            <div id="end-screen" class="screen hidden">
+                <h1 id="winner-text">WINNER!</h1>
+                <button onclick="restartGame()">RESTART</button>
+                <button onclick="nav('main-menu')">EXIT TO MENU</button>
+            </div>
         </div>
-        <div class="stat-box">
-            <div>STAMINA</div>
-            <div class="stamina-bg"><div id="stamina-fill"></div></div>
+
+        <div id="game-hud" class="hidden">
+            <div id="turn-display">PLAYER 1 TURN</div>
+            <div id="dice-container" class="hidden">
+                <button id="roll-btn" onclick="logicLudo.rollDice()">ROLL DICE</button>
+                <div id="dice-result" style="font-size: 3rem; margin-top: 10px;">?</div>
+            </div>
         </div>
     </div>
 
-    <div id="power-container"><div id="power-bar"></div></div>
-    <div id="goal-overlay">GOAL!</div>
-    
-    <canvas id="field"></canvas>
-</div>
+    <script>
+        /* --- JS: GLOBAL SYSTEM (PENGIKAT) --- */
+        const GameManager = {
+            currentGame: null,
+            players: [],
+            turn: 0,
+            gameActive: false,
+            engineReady: false
+        };
 
-<script>
-const canvas = document.getElementById('field');
-const ctx = canvas.getContext('2d');
-canvas.width = 1000;
-canvas.height = 600;
+        // A. START APP
+        function initEngine() {
+            console.log("Engine 3D: Inisialisasi Scene...");
+            GameManager.engineReady = true;
+            // Simulasi load asset
+            setTimeout(() => console.log("Assets Loaded: Board, Bidak, Audio."), 500);
+        }
 
-// Game State
-let gameActive = true;
-let score = { p1: 0, ai: 0 };
-let timeLeft = 120;
-let keys = {};
-let kickPower = 0;
-let isCharging = false;
-let globalFrame = 0;
+        // Navigasi UI
+        function nav(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById(screenId).classList.remove('hidden');
+        }
 
-// Physics Config
-const friction = 0.982;
-
-const ball = {
-    x: 500, y: 300, vx: 0, vy: 0, radius: 9,
-    owner: null,
-    update() {
-        if (this.owner) {
-            const angle = Math.atan2(this.owner.vy, this.owner.vx) || (this.owner.team === 'p1' ? 0 : Math.PI);
-            // Bola diletakkan di dekat kaki, sedikit ke depan
-            this.x = this.owner.x + Math.cos(angle) * 15;
-            this.y = this.owner.y + 15; // Dekat kaki
-            this.vx = this.owner.vx;
-            this.vy = this.owner.vy;
-        } else {
-            this.x += this.vx;
-            this.y += this.vy;
-            this.vx *= friction;
-            this.vy *= friction;
-
-            // Pantulan Dinding
-            if (this.y < this.radius || this.y > canvas.height - this.radius) this.vy *= -0.8;
-            if (this.x < this.radius || this.x > canvas.width - this.radius) {
-                if (this.y < 220 || this.y > 380) this.vx *= -0.8;
+        // C & D. SETUP
+        function setupGame(game) {
+            GameManager.currentGame = game;
+            const info = document.getElementById('player-info');
+            
+            if (game === 'CHESS') {
+                GameManager.players = [{id: 1, color: 'White'}, {id: 2, color: 'Black'}];
+                info.innerHTML = "Mode: 2 Players (White vs Black)";
+            } else if (game === 'LUDO') {
+                GameManager.players = [{id: 1}, {id: 2}, {id: 3}, {id: 4}];
+                info.innerHTML = "Mode: 4 Players (Classic Ludo)";
+            } else {
+                GameManager.players = [{id: 1, sign: 'X'}, {id: 2, sign: 'O'}];
+                info.innerHTML = "Mode: 10x10 Grid (5 in a row to win)";
             }
+            nav('setup-player');
         }
-    }
-};
 
-class Player {
-    constructor(x, y, team, mainColor, skinColor) {
-        this.x = x; this.y = y; this.team = team;
-        this.mainColor = mainColor; // Warna Baju
-        this.skinColor = skinColor;
-        this.vx = 0; this.vy = 0;
-        this.radius = 18; // Untuk Collision dlm game
-        this.speed = 3.5;
-        this.stamina = 100;
-        this.isMoving = false;
-        this.frameCount = 0;
-        this.facingRight = (team === 'p1');
-    }
-
-    draw() {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        
-        // Shadow (pemanis agar napak)
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        ctx.beginPath(); ctx.ellipse(0, 25, 18, 9, 0, 0, Math.PI*2); ctx.fill();
-
-        // Balik karakter jika hadap kiri
-        if (!this.facingRight) ctx.scale(-1, 1);
-
-        // --- Mulai Menggambar ORANG (Top-Down ish) ---
-        this.frameCount += 0.15 * (this.stamina > 20 ? (keys['ShiftLeft'] && this.isMoving ? 2 : 1) : 1);
-        const legSwing = this.isMoving ? Math.sin(this.frameCount) * 8 : 0;
-
-        // Kaki Kiri
-        ctx.fillStyle = this.skinColor;
-        ctx.fillRect(-8, 12 + legSwing, 6, 12);
-        // Sepatu Kiri
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-9, 22 + legSwing, 8, 4);
-
-        // Kaki Kanan
-        ctx.fillStyle = this.skinColor;
-        ctx.fillRect(2, 12 - legSwing, 6, 12);
-        // Sepatu Kanan
-        ctx.fillStyle = '#333';
-        ctx.fillRect(1, 22 - legSwing, 8, 4);
-
-        // Badan (Baju)
-        ctx.fillStyle = this.mainColor;
-        ctx.beginPath();
-        ctx.moveTo(-12, -10); ctx.lineTo(12, -10);
-        ctx.lineTo(10, 15); ctx.lineTo(-10, 15);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
-
-        // Kepala
-        ctx.fillStyle = this.skinColor;
-        ctx.beginPath(); ctx.arc(0, -15, 9, 0, Math.PI*2); ctx.fill();
-        // Rambut (pemanis)
-        ctx.fillStyle = '#222';
-        ctx.beginPath(); ctx.arc(0, -17, 9, Math.PI, Math.PI*2); ctx.fill();
-
-        ctx.restore();
-
-        // Indikator P1 (Panah Kuning di atas kepala)
-        if (this.team === 'p1') {
-            ctx.fillStyle = '#f1c40f';
-            ctx.beginPath(); ctx.moveTo(this.x, this.y - 35); ctx.lineTo(this.x - 5, this.y - 45); ctx.lineTo(this.x + 5, this.y - 45); ctx.fill();
-        }
-    }
-}
-
-// Inisialisasi Pemain (Warna Baju, Warna Kulit)
-const p1 = new Player(200, 300, 'p1', '#3498db', '#ffdbac'); // Biru, Kulit Terang
-const ai = new Player(800, 300, 'ai', '#e74c3c', '#8d5524'); // Merah, Kulit Gelap
-
-window.onkeydown = (e) => {
-    keys[e.code] = true;
-    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD'].includes(e.code)) e.preventDefault();
-};
-window.onkeyup = (e) => {
-    keys[e.code] = false;
-    if (e.code === 'Space' && ball.owner === p1) shoot();
-};
-
-function shoot() {
-    const power = (kickPower / 100) * 16 + 6;
-    let dx = 0, dy = 0;
-
-    // Arak tembakan berdasarkan input gerak
-    if (keys['KeyD'] || keys['ArrowRight']) dx = 1;
-    if (keys['KeyA'] || keys['ArrowLeft']) dx = -1;
-    if (keys['KeyW'] || keys['ArrowUp']) dy = -0.4;
-    if (keys['KeyS'] || keys['ArrowDown']) dy = 0.4;
-
-    // Jika diam, tendang lurus sesuai hadap
-    if (dx === 0 && dy === 0) dx = p1.facingRight ? 1 : -1;
-    
-    // Normalisasi vektor agar kecepatan konsisten
-    const len = Math.hypot(dx, dy);
-    dx /= len; dy /= len;
-
-    ball.owner = null;
-    ball.vx = dx * power;
-    ball.vy = dy * power;
-    ball.x += dx * 10; // Dorong sedikit agar tidak langsung collision lagi
-    kickPower = 0;
-    isCharging = false;
-    document.getElementById('power-container').style.display = 'none';
-}
-
-function update() {
-    if (!gameActive) return;
-    globalFrame++;
-
-    // Stamina & Movement P1
-    let moveSpeed = p1.speed;
-    p1.isMoving = (keys['KeyW'] || keys['ArrowUp'] || keys['KeyS'] || keys['ArrowDown'] || keys['KeyA'] || keys['ArrowLeft']);
-    
-    const stamFill = document.getElementById('stamina-fill');
-    if (keys['ShiftLeft'] && p1.isMoving && p1.stamina > 5) {
-        moveSpeed *= 1.8;
-        p1.stamina -= 0.5;
-        stamFill.style.background = '#e74c3c'; // Merah saat sprint
-    } else {
-        if (p1.stamina < 100) p1.stamina += 0.15;
-        stamFill.style.background = '#2ecc71';
-    }
-    stamFill.style.width = p1.stamina + '%';
-
-    p1.vx = 0; p1.vy = 0;
-    if (keys['KeyW'] || keys['ArrowUp']) p1.vy = -moveSpeed;
-    if (keys['KeyS'] || keys['ArrowDown']) p1.vy = moveSpeed;
-    if (keys['KeyA'] || keys['ArrowLeft']) { p1.vx = -moveSpeed; p1.facingRight = false; }
-    if (keys['KeyD'] || keys['ArrowRight']) { p1.vx = moveSpeed; p1.facingRight = true; }
-
-    p1.x += p1.vx; p1.y += p1.vy;
-    p1.x = Math.max(18, Math.min(canvas.width-18, p1.x));
-    p1.y = Math.max(18, Math.min(canvas.height-18, p1.y));
-
-    // AI Logic (Sederhana)
-    let targetX = ball.x, targetY = ball.y;
-    if (ball.owner === ai) { targetX = 50; targetY = 300; } // Giring ke gawang P1
-
-    let angle = Math.atan2(targetY - ai.y, targetX - ai.x);
-    ai.isMoving = Math.hypot(targetX - ai.x, targetY - ai.y) > 10;
-    
-    if(ai.isMoving) {
-        ai.vx = Math.cos(angle) * ai.speed;
-        ai.vy = Math.sin(angle) * ai.speed;
-        ai.facingRight = ai.vx > 0;
-    } else { ai.vx = 0; ai.vy = 0; }
-    
-    ai.x += ai.vx; ai.y += ai.vy;
-
-    // Tendangan AI
-    if(ball.owner === ai && ai.x < 250) {
-        ball.owner = null;
-        ball.vx = -16; ball.vy = (Math.random() - 0.5) * 4;
-    }
-
-    // Check Possession (Magnet dribbling diubah lebih menempel ke kaki)
-    if (!isCharging) {
-        [p1, ai].forEach(p => {
-            if (ball.owner && ball.owner !== p) return; // Jika sdh ada yang bawa, abaikan
-            let footY = p.y + 20; // Cek collision dekat kaki
-            let d = Math.hypot(ball.x - p.x, ball.y - footY);
-            if (d < p.radius + ball.radius + 2) {
-                ball.owner = p;
+        // E. LOAD GAME SCENE
+        function initGameScene() {
+            nav('none');
+            document.getElementById('game-hud').classList.remove('hidden');
+            GameManager.gameActive = true;
+            
+            console.log(`SceneManager: Loading ${GameManager.currentGame} Board...`);
+            
+            if(GameManager.currentGame === 'LUDO') {
+                document.getElementById('dice-container').classList.remove('hidden');
             }
-        });
-    }
-
-    // Power Charge Logic
-    if (keys['Space'] && ball.owner === p1) {
-        isCharging = true;
-        p1.isMoving = false; // Berhenti saat charge shot
-        document.getElementById('power-container').style.display = 'block';
-        kickPower = Math.min(kickPower + 4, 100);
-        document.getElementById('power-bar').style.width = kickPower + '%';
-    }
-
-    ball.update();
-
-    // Goal Detection
-    if (ball.x < 15 && ball.y > 220 && ball.y < 380) triggerGoal('ai');
-    if (ball.x > 985 && ball.y > 220 && ball.y < 380) triggerGoal('p1');
-}
-
-function triggerGoal(who) {
-    gameActive = false;
-    ball.owner = null;
-    if (who === 'p1') score.p1++; else score.ai++;
-    document.getElementById('score').innerText = `P1 ${score.p1} - ${score.ai} AI`;
-    document.getElementById('goal-overlay').style.display = 'block';
-    setTimeout(() => {
-        document.getElementById('goal-overlay').style.display = 'none';
-        resetPositions();
-        gameActive = true;
-    }, 2500);
-}
-
-function resetPositions() {
-    ball.owner = null; ball.x = 500; ball.y = 300; ball.vx = 0; ball.vy = 0;
-    p1.x = 200; p1.y = 300; ai.x = 800; ai.y = 300; p1.stamina = 100;
-}
-
-function draw() {
-    // Field (Rumput)
-    ctx.fillStyle = '#2ecc71'; ctx.fillRect(0,0,canvas.width,canvas.height);
-    // Pola Garis Rumput
-    ctx.fillStyle = '#27ae60';
-    for(let i=0; i<canvas.width; i+=100) { if((i/100)%2===0) ctx.fillRect(i,0,50,canvas.height); }
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 3;
-    ctx.strokeRect(50, 50, 900, 500); // Out line
-    ctx.beginPath(); ctx.moveTo(500, 50); ctx.lineTo(500, 550); ctx.stroke(); // Center line
-    ctx.beginPath(); ctx.arc(500, 300, 80, 0, Math.PI*2); ctx.stroke(); // Center circle
-    
-    // Kotak Penalti
-    ctx.strokeRect(50, 150, 150, 300);
-    ctx.strokeRect(800, 150, 150, 300);
-
-    // Gawang (tiang)
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 5;
-    ctx.strokeRect(0, 220, 50, 160);
-    ctx.strokeRect(950, 220, 50, 160);
-
-    update();
-    
-    // Sortir gambar berdasarkan Y (Depth Sorting: yg di bawah menggambar belakangan)
-    const objects = [p1, ai, ball].sort((a, b) => a.y - b.y);
-    
-    objects.forEach(obj => {
-        if(obj === ball) {
-            // Ball Draw
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
-        } else {
-            obj.draw();
+            
+            renderLoop();
         }
-    });
 
-    requestAnimationFrame(draw);
-}
+        // F. GAMEPLAY LOOP (INTI SISTEM)
+        function renderLoop() {
+            if (!GameManager.gameActive) return;
+            
+            // handleInput()
+            // updateGameLogic()
+            updateCamera(GameManager.turn);
+            // render()
+            
+            requestAnimationFrame(renderLoop);
+        }
 
-// Timer Interval
-setInterval(() => {
-    if (gameActive && timeLeft > 0) {
-        timeLeft--;
-        let mins = Math.floor(timeLeft / 60);
-        let secs = timeLeft % 60;
-        document.getElementById('timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    } else if (timeLeft === 0 && gameActive) {
-        gameActive = false;
-        alert(`Game Over! Skor Akhir: P1 ${score.p1} - ${score.ai} AI`);
-    }
-}, 1000);
+        // G. CAMERA SYSTEM (SHARED)
+        function updateCamera(playerIndex) {
+            // Logic: Kamera mengikuti pemain aktif secara halus
+            // if (playerIndex === 1) camera.pos(front) else board.rotate(180)
+        }
 
-draw();
-</script>
+        /* --- H. GAME LOGIC PER MODULE --- */
+
+        // 1. CHESS LOGIC
+        const logicChess = {
+            move: (piece, target) => {
+                if (true) { // isValidMove()
+                    console.log("Chess: Move Valid");
+                    this.checkMate();
+                    nextTurn();
+                }
+            },
+            checkMate: () => { /* endGame() if true */ }
+        };
+
+        // 2. LUDO LOGIC
+        const logicLudo = {
+            rollDice: () => {
+                const roll = Math.floor(Math.random() * 6) + 1;
+                document.getElementById('dice-result').innerText = roll;
+                playAudio("dice-sound");
+                
+                if (roll === 6) {
+                    alert("Dadu 6! Dapat giliran tambahan.");
+                } else {
+                    setTimeout(nextTurn, 1000);
+                }
+            }
+        };
+
+        // 3. XO 100 GRID LOGIC
+        const logicXO = {
+            checkWin: () => {
+                // Scan 10x10 grid for 5 in a row
+                // if(win) { drawGoldFireLine(); endGame(); }
+            }
+        };
+
+        /* --- I, J, K. GLOBAL HANDLER --- */
+        function nextTurn() {
+            GameManager.turn = (GameManager.turn + 1) % GameManager.players.length;
+            document.getElementById('turn-display').innerText = `PLAYER ${GameManager.turn + 1} TURN`;
+            playAudio("move-sound");
+        }
+
+        function endGame(winnerName) {
+            GameManager.gameActive = false;
+            document.getElementById('game-hud').classList.add('hidden');
+            document.getElementById('winner-text').innerText = `WINNER: ${winnerName}`;
+            nav('end-screen');
+            playAudio("victory-sound");
+        }
+
+        function restartGame() {
+            location.reload(); 
+        }
+
+        function playAudio(type) {
+            console.log(`AudioManager: Playing ${type}`);
+        }
+
+        // Jalankan Engine saat start
+        initEngine();
+
+    </script>
 </body>
 </html>
