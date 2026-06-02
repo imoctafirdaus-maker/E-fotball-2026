@@ -2,247 +2,443 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Game Platform: Chess, Ludo, XO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retro Board Game Collection - 1888</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#b7950b">
+    <link rel="apple-touch-icon" href="1777546745740.png">
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
     <style>
-        /* --- CSS: VISUAL SYSTEM --- */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Special+Elite&display=swap');
+
         :root {
-            --gold: #ffd700;
-            --dark: #121212;
-            --glass: rgba(0, 0, 0, 0.85);
+            --wood-dark: #3d2b1f;
+            --wood-light: #5d4037;
+            --brass: #b7950b;
+            --brass-dark: #7d6608;
+            --paper: #d7ccc8;
+            --gold-fire: linear-gradient(90deg, #ff4500, #ffd700, #ffffff, #ffd700, #ff4500);
+            --shadow-out: 4px 4px 8px rgba(0,0,0,0.4), -1px -1px 2px rgba(255,255,255,0.1);
+            --shadow-in: inset 4px 4px 8px rgba(0,0,0,0.5), inset -1px -1px 2px rgba(255,255,255,0.1);
         }
 
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #000; color: white; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
-        #game-container { position: relative; width: 100vw; height: 100vh; }
-        canvas { width: 100%; height: 100%; display: block; background: radial-gradient(circle, #2c3e50 0%, #000 100%); }
-
-        /* UI Screens */
-        .overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; justify-content: center; align-items: center;
-            pointer-events: none;
+        body { 
+            background: radial-gradient(circle, #2c1e16 0%, #1a0f0a 100%);
+            color: var(--paper); font-family: 'Special Elite', cursive;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; padding: 10px; overflow: hidden;
+            -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: pan-y;
         }
 
-        .screen {
-            background: var(--glass);
-            padding: 40px; border-radius: 20px; text-align: center;
-            border: 2px solid var(--gold); pointer-events: all;
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
-            min-width: 300px;
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 1000; 
+            display: flex; justify-content: center; align-items: center; backdrop-filter: blur(8px);
+        }
+        .card-vintage {
+            background: var(--wood-light); padding: 25px; border: 8px double var(--brass);
+            border-radius: 5px; text-align: center; width: 95%; max-width: 400px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        .name-input {
+            width: 100%; padding: 10px; border: none; background: #2a1b12; color: var(--paper);
+            margin-bottom: 15px; box-shadow: var(--shadow-in); outline: none; text-align: center; font-family: 'Special Elite';
         }
 
-        .hidden { display: none !important; }
+        .btn-choice {
+            padding: 10px 15px; border: 1px solid var(--brass-dark); background: var(--wood-light);
+            color: var(--brass); font-weight: bold; cursor: pointer; border-radius: 8px;
+            box-shadow: var(--shadow-out); transition: 0.2s; font-family: 'Cinzel'; margin: 5px;
+        }
+        .btn-choice:disabled { background: #333; color: #666; cursor: not-allowed; opacity: 0.6; }
+        .btn-choice:active:not(:disabled) { transform: scale(0.95); box-shadow: var(--shadow-in); }
 
-        button {
-            display: block; width: 100%; margin: 15px 0; padding: 15px;
-            cursor: pointer; background: var(--gold); border: none; 
-            font-weight: bold; font-size: 1rem; border-radius: 8px;
-            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        .scoreboard { 
+            display: flex; gap: 10px; margin-bottom: 10px; width: 100%; max-width: 450px; 
+            padding: 5px; border-bottom: 2px solid var(--brass-dark);
+        }
+        .score-box { flex: 1; text-align: center; padding: 5px; background: var(--wood-dark); border-radius: 10px; box-shadow: var(--shadow-in); font-size: 0.8rem; }
+        .score-box b { font-size: 1.2rem; color: var(--brass); font-family: 'Cinzel'; }
+
+        .viewport-container { 
+            width: 100%; display: flex; justify-content: center; align-items: center; 
+            padding: 20px 0; perspective: 1500px;
+        }
+        
+        .board-wrapper { 
+            position: relative; padding: 15px; background: var(--wood-dark); 
+            border: 10px solid #2a1b12; border-radius: 4px; 
+            box-shadow: 0 30px 60px rgba(0,0,0,0.9);
+            transform: rotateX(35deg) rotateZ(0deg); 
+            transition: transform 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            transform-style: preserve-3d;
+        }
+        .flipped-camera { transform: rotateX(35deg) rotateZ(180deg) !important; }
+
+        .board-xoxo { display: grid; grid-template-columns: repeat(10, 8.5vw); grid-template-rows: repeat(10, 8.5vw); gap: 2px; max-width: 90vw; }
+        .board-chess { display: grid; grid-template-columns: repeat(8, 11vw); grid-template-rows: repeat(8, 11vw); gap: 0; max-width: 90vw; background: #000; }
+
+        .block, .chess-tile { 
+            width: 100%; height: 100%; background: var(--wood-light);
+            display: flex; justify-content: center; align-items: center; 
+            font-family: 'Cinzel'; cursor: pointer; box-shadow: var(--shadow-out);
+            transition: background-color 0.3s ease;
+        }
+        
+        /* Warna spesifik untuk X (Merah) dan O (Kuning) */
+        .block.filled-x { background-color: #d32f2f !important; }
+        .block.filled-o { background-color: #f1c40f !important; }
+
+        .tile-dark { background: #4e342e; }
+        .tile-light { background: #d7ccc8; color: #3d2b1f; }
+        
+        .piece { filter: drop-shadow(2px 5px 3px rgba(0,0,0,0.6)); font-size: 1.5rem; }
+        .piece-flipped { transform: rotate(180deg); }
+
+        .x-icon { color: white; font-weight: bold; font-size: 5vw; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .o-icon { color: #3d2b1f; font-weight: bold; font-size: 5vw; text-shadow: 1px 1px 2px rgba(255,255,255,0.3); }
+
+        .win-line { 
+            position: absolute; z-index: 100; background: var(--gold-fire); 
+            height: 8px; border-radius: 10px; pointer-events: none;
+            box-shadow: 0 0 20px #ff4500; animation: fire-flicker 0.2s infinite alternate; transform-origin: left center;
         }
 
-        button:hover { transform: scale(1.05); background: white; color: black; }
-        button.back { background: #555; color: white; margin-top: 20px; }
+        .admin-controls { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; margin-top: 15px; }
+        .btn-tiny { font-size: 0.6rem; padding: 5px 10px; border-radius: 15px; }
 
-        /* HUD & Gameplay UI */
-        #game-hud {
-            position: absolute; top: 20px; width: 100%; text-align: center;
-            pointer-events: none; color: var(--gold); font-size: 1.5rem;
-            text-shadow: 0 2px 5px #000;
+        #toast {
+            position: fixed; bottom: 80px; background: var(--brass); color: #000;
+            padding: 10px 20px; border-radius: 5px; font-weight: bold; display: none; z-index: 3000;
         }
 
-        #dice-container {
-            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
-            pointer-events: all;
-        }
-
-        /* XO Grid Simulation (Small preview of the 100 grid logic) */
-        .xo-info { font-size: 0.8rem; color: #aaa; margin-top: 10px; }
+        @keyframes fire-flicker { from { opacity: 0.7; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <canvas id="renderCanvas"></canvas>
+    <div id="overlay">
+        <div class="card-vintage">
+            <h1 style="font-family: 'Cinzel'; color: var(--brass); margin-bottom: 15px; font-size: 1.8rem; text-shadow: 2px 2px #000;">1888 SALOON</h1>
+            <input type="text" id="inputNama" class="name-input" placeholder="GELAR ANDA (NAMA)..." maxlength="10">
+            
+            <button class="btn-choice" style="width: 100%;" onclick="selectGame('XOXO')">TIC-TAC-TOE 10x10</button>
+            <button class="btn-choice" style="width: 100%;" onclick="selectGame('CHESS')">CLASSIC CHESS 3D</button>
 
-        <div class="overlay">
-            <div id="main-menu" class="screen">
-                <h1 style="letter-spacing: 5px;">GAME HUB 3D</h1>
-                <p>Platform Multi-Mode</p>
-                <button onclick="nav('game-selection')">PLAY</button>
-                <button onclick="alert('Settings: Volume 100%')">SETTINGS</button>
-                <button onclick="confirm('Exit Game?')">EXIT</button>
-            </div>
-
-            <div id="game-selection" class="screen hidden">
-                <h2>PILIH MODE</h2>
-                <button onclick="setupGame('CHESS')">♟️ CHESS 3D</button>
-                <button onclick="setupGame('LUDO')">🎲 LUDO 3D</button>
-                <button onclick="setupGame('XO')">❌ XO 3D (100 GRID)</button>
-                <button class="back" onclick="nav('main-menu')">KEMBALI</button>
-            </div>
-
-            <div id="setup-player" class="screen hidden">
-                <h2 id="setup-title">KONFIGURASI</h2>
-                <div id="player-info" style="margin-bottom: 20px;"></div>
-                <button onclick="initGameScene()">START GAME</button>
-                <button class="back" onclick="nav('game-selection')">BACK</button>
-            </div>
-
-            <div id="end-screen" class="screen hidden">
-                <h1 id="winner-text">WINNER!</h1>
-                <button onclick="restartGame()">RESTART</button>
-                <button onclick="nav('main-menu')">EXIT TO MENU</button>
-            </div>
-        </div>
-
-        <div id="game-hud" class="hidden">
-            <div id="turn-display">PLAYER 1 TURN</div>
-            <div id="dice-container" class="hidden">
-                <button id="roll-btn" onclick="logicLudo.rollDice()">ROLL DICE</button>
-                <div id="dice-result" style="font-size: 3rem; margin-top: 10px;">?</div>
+            <div id="role-select" style="display:none; margin-top: 20px; border-top: 1px solid var(--brass-dark); padding-top: 15px;">
+                <p id="role-text" style="margin-bottom: 10px; font-size: 0.8rem; color: var(--brass);">PILIH KUBURAN:</p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="btn1" class="btn-choice" onclick="confirmStart(1)"></button>
+                    <button id="btn2" class="btn-choice" onclick="confirmStart(2)"></button>
+                </div>
             </div>
         </div>
     </div>
 
+    <div id="toast">MENUNGGU KONFIRMASI LAWAN...</div>
+
+    <div class="scoreboard">
+        <div class="score-box"><span id="p1-name">WAITING...</span><br><b id="p1-score">0</b></div>
+        <div class="score-box" style="background:transparent; box-shadow:none; flex:0.2; font-family:'Cinzel';">VS</div>
+        <div class="score-box"><span id="p2-name">WAITING...</span><br><b id="p2-score">0</b></div>
+    </div>
+
+    <div id="status" style="font-size: 0.8rem; margin-bottom: 5px; letter-spacing: 2px;">MENGHUBUNGKAN...</div>
+
+    <div class="viewport-container">
+        <div id="board-perspective" class="board-wrapper">
+            <div id="main-board"></div>
+            <div id="line-container" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></div>
+        </div>
+    </div>
+
+    <div class="admin-controls">
+        <button class="btn-choice btn-tiny" onclick="location.reload()">🔄 REFRESH TAMPILAN</button>
+        <button class="btn-choice btn-tiny" onclick="requestReset()">🧹 RESET PAPAN</button>
+        <button class="btn-choice btn-tiny" style="color: #ff4500; border-color: #ff4500;" onclick="askFinish()">🏁 SELESAIKAN PERMAINAN</button>
+    </div>
+
     <script>
-        /* --- JS: GLOBAL SYSTEM (PENGIKAT) --- */
-        const GameManager = {
-            currentGame: null,
-            players: [],
-            turn: 0,
-            gameActive: false,
-            engineReady: false
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker Registered'))
+                    .catch(err => console.log('Service Worker Failed', err));
+            });
+        }
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlL2HCkJYw_wNTMvJpDUpmJzw1-plQTm0",
+            authDomain: "tic-tac-toe-api-5a2c0.firebaseapp.com",
+            databaseURL: "https://tic-tac-toe-api-5a2c0-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "tic-tac-toe-api-5a2c0",
+            storageBucket: "tic-tac-toe-api-5a2c0.firebasestorage.app",
+            messagingSenderId: "820709850876",
+            appId: "1:820709850876:web:e07700750b3faccb412179"
         };
+        firebase.initializeApp(firebaseConfig);
+        let db = null;
 
-        // A. START APP
-        function initEngine() {
-            console.log("Engine 3D: Inisialisasi Scene...");
-            GameManager.engineReady = true;
-            // Simulasi load asset
-            setTimeout(() => console.log("Assets Loaded: Board, Bidak, Audio."), 500);
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playPop(freq, type = 'sine', vol = 0.1, duration = 0.1) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
         }
 
-        // Navigasi UI
-        function nav(screenId) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-            document.getElementById(screenId).classList.remove('hidden');
+        function playWinSound() {
+            [440, 554, 659, 880].forEach((f, i) => {
+                setTimeout(() => playPop(f, 'square', 0.05, 0.3), i * 100);
+            });
         }
 
-        // C & D. SETUP
-        function setupGame(game) {
-            GameManager.currentGame = game;
-            const info = document.getElementById('player-info');
-            
-            if (game === 'CHESS') {
-                GameManager.players = [{id: 1, color: 'White'}, {id: 2, color: 'Black'}];
-                info.innerHTML = "Mode: 2 Players (White vs Black)";
-            } else if (game === 'LUDO') {
-                GameManager.players = [{id: 1}, {id: 2}, {id: 3}, {id: 4}];
-                info.innerHTML = "Mode: 4 Players (Classic Ludo)";
-            } else {
-                GameManager.players = [{id: 1, sign: 'X'}, {id: 2, sign: 'O'}];
-                info.innerHTML = "Mode: 10x10 Grid (5 in a row to win)";
-            }
-            nav('setup-player');
+        let mIdx = 0;
+        const melody = [261, 329, 392, 523, 392, 329]; 
+        function loopMusic() {
+            playPop(melody[mIdx], 'sine', 0.02, 0.4);
+            mIdx = (mIdx + 1) % melody.length;
+            setTimeout(loopMusic, 500);
         }
 
-        // E. LOAD GAME SCENE
-        function initGameScene() {
-            nav('none');
-            document.getElementById('game-hud').classList.remove('hidden');
-            GameManager.gameActive = true;
-            
-            console.log(`SceneManager: Loading ${GameManager.currentGame} Board...`);
-            
-            if(GameManager.currentGame === 'LUDO') {
-                document.getElementById('dice-container').classList.remove('hidden');
-            }
-            
-            renderLoop();
-        }
+        let currentGame = ""; let myRole = ""; let myName = ""; let turn = ""; 
+        let currentBoardState = {}; let isGameOver = false;
+        let scoredLines = [];
 
-        // F. GAMEPLAY LOOP (INTI SISTEM)
-        function renderLoop() {
-            if (!GameManager.gameActive) return;
+        function selectGame(game) {
+            const n = document.getElementById('inputNama').value;
+            if(!n) return alert("Sebutkan Nama Anda, Tuan!");
+            myName = n; currentGame = game;
+            db = firebase.database().ref('multi_game_v1/' + game);
+            document.getElementById('role-select').style.display = 'block';
             
-            // handleInput()
-            // updateGameLogic()
-            updateCamera(GameManager.turn);
-            // render()
-            
-            requestAnimationFrame(renderLoop);
-        }
-
-        // G. CAMERA SYSTEM (SHARED)
-        function updateCamera(playerIndex) {
-            // Logic: Kamera mengikuti pemain aktif secara halus
-            // if (playerIndex === 1) camera.pos(front) else board.rotate(180)
-        }
-
-        /* --- H. GAME LOGIC PER MODULE --- */
-
-        // 1. CHESS LOGIC
-        const logicChess = {
-            move: (piece, target) => {
-                if (true) { // isValidMove()
-                    console.log("Chess: Move Valid");
-                    this.checkMate();
-                    nextTurn();
-                }
-            },
-            checkMate: () => { /* endGame() if true */ }
-        };
-
-        // 2. LUDO LOGIC
-        const logicLudo = {
-            rollDice: () => {
-                const roll = Math.floor(Math.random() * 6) + 1;
-                document.getElementById('dice-result').innerText = roll;
-                playAudio("dice-sound");
-                
-                if (roll === 6) {
-                    alert("Dadu 6! Dapat giliran tambahan.");
+            db.child('names').on('value', s => {
+                const names = s.val() || {};
+                const b1 = document.getElementById('btn1'), b2 = document.getElementById('btn2');
+                if(game === 'XOXO') {
+                    b1.innerText = "PIHAK X"; b2.innerText = "PIHAK O";
+                    b1.disabled = !!names.X; b2.disabled = !!names.O;
                 } else {
-                    setTimeout(nextTurn, 1000);
+                    b1.innerText = "PUTIH"; b2.innerText = "HITAM";
+                    b1.disabled = !!names.white; b2.disabled = !!names.black;
+                }
+            });
+        }
+
+        function confirmStart(choice) {
+            myRole = (currentGame === 'XOXO') ? (choice === 1 ? 'X' : 'O') : (choice === 1 ? 'white' : 'black');
+            const wrapper = document.getElementById('board-perspective');
+            if(myRole === 'black' || myRole === 'O') wrapper.classList.add('flipped-camera');
+            db.child('names/' + myRole).set(myName);
+            document.getElementById('overlay').style.display = 'none';
+            if(currentGame === 'XOXO') initXOXO(); else initChess();
+            startSync();
+            listenToFinishRequests();
+            loopMusic();
+        }
+
+        function initXOXO() {
+            const board = document.getElementById('main-board');
+            board.className = "board-xoxo"; board.innerHTML = "";
+            for(let i=0; i<100; i++) {
+                const b = document.createElement('div'); b.className = 'block'; b.id = `b-${i}`;
+                b.onclick = () => {
+                    if(turn === myRole) {
+                        const val = (myRole === 'X' ? 1 : 2);
+                        playPop(myRole === 'X' ? 400 : 300, 'triangle', 0.15, 0.1);
+                        db.child('cells/' + i).set(val);
+                        db.child('turn').set(myRole === 'X' ? 'O' : 'X');
+                        checkPointsXOXO(i, val);
+                    }
+                };
+                board.appendChild(b);
+            }
+        }
+
+        function checkPointsXOXO(idx, p) {
+            const size = 10; const r = Math.floor(idx / size), c = idx % size;
+            const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+            for(let [dr, dc] of dirs) {
+                let count = 1, line = [idx];
+                for(let step of [1, -1]) {
+                    let nr = r + dr*step, nc = c + dc*step;
+                    while(nr>=0 && nr<size && nc>=0 && nc<size && currentBoardState[nr*size + nc] === p) {
+                        count++; line.push(nr*size+nc);
+                        nr += dr*step; nc += dc*step;
+                    }
+                }
+                if(count >= 5) {
+                    const lineKey = line.sort((a,b)=>a-b).join(',');
+                    if(!scoredLines.includes(lineKey)) {
+                        scoredLines.push(lineKey);
+                        db.child('scored_lines').push(lineKey);
+                        const roleP = (p === 1 ? 'X' : 'O');
+                        db.child('scores/' + roleP).transaction(s => (s||0) + 1);
+                        db.child('last_win_line').set({line: line, p: p});
+                        playWinSound();
+                    }
                 }
             }
-        };
+        }
 
-        // 3. XO 100 GRID LOGIC
-        const logicXO = {
-            checkWin: () => {
-                // Scan 10x10 grid for 5 in a row
-                // if(win) { drawGoldFireLine(); endGame(); }
+        function startSync() {
+            db.child('turn').on('value', s => { 
+                turn = s.val() || (currentGame==='XOXO'?'X':'white'); 
+                document.getElementById('status').innerText = (turn === myRole) ? "GILIRAN ANDA" : "LAWAN BERPIKIR..."; 
+            });
+            db.child('names').on('value', s => {
+                const n = s.val() || {};
+                if(currentGame === 'XOXO') { document.getElementById('p1-name').innerText = n.X||"Menunggu X"; document.getElementById('p2-name').innerText = n.O||"Menunggu O"; }
+                else { document.getElementById('p1-name').innerText = n.white||"Putih"; document.getElementById('p2-name').innerText = n.black||"Hitam"; }
+            });
+            db.child('scores').on('value', s => {
+                const sc = s.val() || {};
+                if(currentGame === 'XOXO') { document.getElementById('p1-score').innerText = sc.X||0; document.getElementById('p2-score').innerText = sc.O||0; }
+                else { document.getElementById('p1-score').innerText = sc.white||0; document.getElementById('p2-score').innerText = sc.black||0; }
+            });
+            db.child('cells').on('value', s => { currentBoardState = s.val() || {}; renderBoard(); });
+            db.child('scored_lines').on('value', s => { scoredLines = Object.values(s.val() || {}); });
+            db.child('last_win_line').on('value', s => { if(s.exists()) drawWinLine(s.val().line); });
+            db.child('winner').on('value', s => {
+                if(s.exists()) {
+                    isGameOver = true;
+                    document.getElementById('status').innerHTML = `<b style="color:var(--brass)">${s.val().name.toUpperCase()}</b>`;
+                }
+            });
+        }
+
+        function renderBoard() {
+            const flip = (myRole === 'black' || myRole === 'O');
+            if(currentGame === 'XOXO') {
+                for(let i=0; i<100; i++) {
+                    const el = document.getElementById(`b-${i}`); if(!el) continue;
+                    const v = currentBoardState[i]; 
+                    el.classList.remove('filled-x', 'filled-o');
+                    if(v === 1) {
+                        el.classList.add('filled-x');
+                        el.innerHTML = `<span class="x-icon ${flip?'piece-flipped':''}">X</span>`;
+                    } else if(v === 2) {
+                        el.classList.add('filled-o');
+                        el.innerHTML = `<span class="o-icon ${flip?'piece-flipped':''}">O</span>`;
+                    } else {
+                        el.innerHTML = "";
+                    }
+                }
+            } else {
+                for(let i=0; i<64; i++) {
+                    const el = document.getElementById(`t-${i}`); if(!el) continue;
+                    const p = currentBoardState[i];
+                    el.innerHTML = p ? `<span class="piece ${p.color} ${flip?'piece-flipped':''}">${chessPieces[p.color][p.type]}</span>` : "";
+                }
             }
+        }
+
+        function drawWinLine(line) {
+            const container = document.getElementById('line-container'); 
+            const el1 = document.getElementById(`b-${line[0]}`), el2 = document.getElementById(`b-${line[line.length-1]}`);
+            if(!el1 || !el2) return;
+            const x1 = el1.offsetLeft + (el1.offsetWidth/2), y1 = el1.offsetTop + (el1.offsetHeight/2);
+            const x2 = el2.offsetLeft + (el2.offsetWidth/2), y2 = el2.offsetTop + (el2.offsetHeight/2);
+            const dist = Math.hypot(x2-x1, y2-y1), angle = Math.atan2(y2-y1, x2-x1) * 180 / Math.PI;
+            const div = document.createElement('div'); div.className = "win-line";
+            div.style.width = dist + "px"; div.style.left = x1 + "px"; div.style.top = y1 + "px";
+            div.style.transform = `rotate(${angle}deg)`; container.appendChild(div);
+            setTimeout(() => div.remove(), 2000); 
+        }
+
+        function requestReset() {
+            if(confirm("Bersihkan papan dan mulai ulang skor?")) {
+                db.child('cells').remove(); db.child('winner').remove();
+                db.child('scored_lines').remove(); db.child('scores').remove();
+                db.child('last_win_line').remove();
+                if(currentGame === 'CHESS') resetChessBoard();
+                document.getElementById('line-container').innerHTML = ""; isGameOver = false;
+            }
+        }
+
+        function askFinish() {
+            if(confirm("Minta lawan untuk menyudahi permainan ini?")) {
+                db.child('finish_request').set({ requester: myRole, name: myName });
+                document.getElementById('toast').style.display = 'block';
+            }
+        }
+
+        function listenToFinishRequests() {
+            db.child('finish_request').on('value', s => {
+                const req = s.val();
+                if(req && req.requester !== myRole) {
+                    if(confirm(`${req.name} mengajak menyudahi permainan. Keluar ke Lobby?`)) {
+                        db.remove();
+                        location.reload();
+                    } else {
+                        db.child('finish_request').remove();
+                    }
+                }
+            });
+        }
+
+        const chessPieces = { 
+            white: { p: '♙', r: '♖', n: '♘', b: '♗', q: '♕', k: '♔' }, 
+            black: { p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚' } 
         };
+        let selectedTile = null;
 
-        /* --- I, J, K. GLOBAL HANDLER --- */
-        function nextTurn() {
-            GameManager.turn = (GameManager.turn + 1) % GameManager.players.length;
-            document.getElementById('turn-display').innerText = `PLAYER ${GameManager.turn + 1} TURN`;
-            playAudio("move-sound");
+        function initChess() {
+            const board = document.getElementById('main-board');
+            board.className = "board-chess"; board.innerHTML = "";
+            for(let i=0; i<64; i++) {
+                const tile = document.createElement('div');
+                tile.className = `chess-tile ${(Math.floor(i/8)+(i%8))%2===0 ? 'tile-light' : 'tile-dark'}`;
+                tile.id = `t-${i}`; tile.onclick = () => handleChessClick(i);
+                board.appendChild(tile);
+            }
+            db.child('cells').once('value', s => { if(!s.exists()) resetChessBoard(); });
         }
 
-        function endGame(winnerName) {
-            GameManager.gameActive = false;
-            document.getElementById('game-hud').classList.add('hidden');
-            document.getElementById('winner-text').innerText = `WINNER: ${winnerName}`;
-            nav('end-screen');
-            playAudio("victory-sound");
+        function resetChessBoard() {
+            const start = {}; const layout = ['r','n','b','q','k','b','n','r'];
+            for(let i=0; i<8; i++) {
+                start[i] = { type: layout[i], color: 'black' }; start[8+i] = { type: 'p', color: 'black' };
+                start[48+i] = { type: 'p', color: 'white' }; start[56+i] = { type: layout[i], color: 'white' };
+            }
+            db.child('cells').set(start); db.child('turn').set('white');
         }
 
-        function restartGame() {
-            location.reload(); 
+        function handleChessClick(i) {
+            if(turn !== myRole || isGameOver) return;
+            const piece = currentBoardState[i];
+            if(selectedTile === null) {
+                if(piece && piece.color === myRole) {
+                    selectedTile = i;
+                    document.getElementById(`t-${i}`).style.boxShadow = "inset 0 0 10px gold";
+                }
+            } else {
+                if(selectedTile === i) {
+                    selectedTile = null; renderBoard(); return;
+                }
+                const move = {}; 
+                move[selectedTile] = null;
+                move[i] = currentBoardState[selectedTile];
+                db.child('cells').update(move);
+                db.child('turn').set(myRole === 'white' ? 'black' : 'white');
+                selectedTile = null;
+                playPop(500, 'sine', 0.1, 0.05);
+            }
         }
-
-        function playAudio(type) {
-            console.log(`AudioManager: Playing ${type}`);
-        }
-
-        // Jalankan Engine saat start
-        initEngine();
-
     </script>
 </body>
 </html>
